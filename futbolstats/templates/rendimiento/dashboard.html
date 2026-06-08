@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Inicio — FutbolStats{% endblock %}
+{% block content %}
+<div class="row mb-4">
+  <div class="col">
+    <h2 class="fw-bold" style="color:var(--navy)">Bienvenido, {{ user.username }} 👋</h2>
+    <p class="text-muted">Selecciona una funcionalidad para empezar</p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-md-4">
+    <a href="{% url 'rendimiento:index' %}" class="text-decoration-none">
+      <div class="card h-100 p-3 text-center">
+        <div style="font-size:2.5rem">📊</div>
+        <h5 class="mt-2 fw-bold" style="color:var(--navy)">Análisis de rendimiento</h5>
+        <p class="text-muted small">Local vs. visitante · últimos X partidos · gráfica de goles</p>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-md-4">
+    <a href="{% url 'rachas:comparador' %}" class="text-decoration-none">
+      <div class="card h-100 p-3 text-center">
+        <div style="font-size:2.5rem">🔥</div>
+        <h5 class="mt-2 fw-bold" style="color:var(--navy)">Comparador de rachas</h5>
+        <p class="text-muted small">Clasificación de forma · últimas 5 jornadas</p>
+      </div>
+    </a>
+  </div>
+  <div class="col-md-4">
+    <a href="{% url 'plantilla:valor_mercado' %}" class="text-decoration-none">
+      <div class="card h-100 p-3 text-center">
+        <div style="font-size:2.5rem">💶</div>
+        <h5 class="mt-2 fw-bold" style="color:var(--navy)">Valor de la plantilla</h5>
+        <p class="text-muted small">Valor de mercado agrupado por demarcación</p>
+      </div>
+    </a>
+  </div>
+  <div class="col-md-4">
+    <a href="{% url 'zonas_fan:zonas' %}" class="text-decoration-none">
+      <div class="card h-100 p-3 text-center">
+        <div style="font-size:2.5rem">🗺️</div>
+        <h5 class="mt-2 fw-bold" style="color:var(--navy)">Zonas fan y restauración</h5>
+        <p class="text-muted small">Mapa interactivo · bares y restaurantes cerca del estadio</p>
+      </div>
+    </a>
+  </div>
+  <div class="col-md-4">
+    <a href="{% url 'hemeroteca:hemeroteca' %}" class="text-decoration-none">
+      <div class="card h-100 p-3 text-center">
+        <div style="font-size:2.5rem">🎬</div>
+        <h5 class="mt-2 fw-bold" style="color:var(--navy)">Hemeroteca y vídeos</h5>
+        <p class="text-muted small">Resúmenes de partidos · YouTube API · ScoreBat</p>
+      </div>
+    </a>
+  </div>
+  {% endblock %}

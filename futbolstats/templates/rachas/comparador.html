@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Comparador de rachas — FutbolStats{% endblock %}
+
+{% block content %}
+<h3 class="fw-bold mb-1" style="color:var(--navy)">🔥 Rachas y clasificación de forma</h3>
+<p class="text-muted mb-4">Clasificación oficial actual + ranking de forma configurable por número de partidos</p>
+
+<!-- Formulario -->
+<div class="card mb-4">
+  <div class="card-header card-header-navy">Configurar consulta</div>
+  <div class="card-body">
+    <form method="post" data-loading class="row g-3 align-items-end">
+      {% csrf_token %}
+      <div class="col-md-5">
+        <label class="form-label fw-semibold">Competición</label>
+        <div class="position-relative">
+          <input type="text" name="competicion" id="input-competicion"
+                 class="form-control" value="{{ competicion_nombre }}"
+                 placeholder="LaLiga Hypermotion" autocomplete="off">
+        </div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">
+          Partidos para calcular la racha
+          <i class="bi bi-info-circle text-muted" style="font-size:.8rem;"
+             title="Número de últimos partidos para calcular la puntuación de forma"></i>
+        </label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-hash"></i></span>
+          <input type="number" name="n_partidos" class="form-control"
+                 value="{{ n_partidos }}" min="1" max="38"
+                 placeholder="5">
+          <span class="input-group-text text-muted">partidos</span>
+        </div>
+        <div class="form-text">Entre 1 y 38 partidos</div>
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-navy w-100">
+          <i class="bi bi-fire me-1"></i> Calcular ranking de forma
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="row g-4">
+
+  <!-- Clasificación oficial (siempre visible por defecto) -->
+  <div class="{% if mostrar_forma %}col-md-5{% else %}col-12{% endif %}">
+    <div class="card h-100">
+      <div class="card-header card-header-navy d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-list-ol me-1"></i> Clasificación oficial — {{ competicion_nombre }}</span>
+        <span class="badge bg-light text-dark">Actual</span>
+      </div>
+      <div class="card-body p-0">
+        {% if clasificacion %}
+        <div class="table-responsive">
+          <table class="table table-hover table-sm mb-0">
+            <thead class="table-light">
+              <tr>
+                <th class="text-center" style="width:36px;">#</th>
+                <th>Equipo</th>
+                <th class="text-center">PJ</th>
+                <th class="text-center">PTS</th>
+                <th class="text-center d-none d-md-table-cell">DG</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for eq in clasificacion %}
+              <tr {% if 'depor' in eq.equipo|lower %}class="table-primary fw-bold"{% endif %}>
+                <td class="text-center fw-semibold">{{ eq.pos }}</td>
+                <td>{{ eq.equipo }}</td>
+                <td class="text-center text-muted">{{ eq.pj }}</td>
+                <td class="text-center">
+                  <span class="badge bg-dark">{{ eq.puntos }}</span>
+                </td>
+                <td class="text-center d-none d-md-table-cell
+                  {% if eq.dg > 0 %}text-success{% elif eq.dg < 0 %}text-danger{% else %}text-muted{% endif %}">
+                  {% if eq.dg > 0 %}+{% endif %}{{ eq.dg }}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-muted p-3 mb-0">No se pudo cargar la clasificación.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Ranking de forma (solo tras POST) -->
+  {% if mostrar_forma and ranking %}
+  <div class="col-md-7">
+    <div class="card h-100">
+      <div class="card-header card-header-navy d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-fire me-1"></i> Ranking de forma — últimos {{ n_partidos }} partidos</span>
+        <span class="badge bg-warning text-dark">Pandas</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover table-sm mb-0">
+            <thead class="table-light">
+              <tr>
+                <th class="text-center">#</th>
+                <th>Equipo</th>
+                <th class="text-center">Pts racha</th>
+                <th>Últimos {{ n_partidos }}p.</th>
+                <th class="text-center">Δ pos.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for eq in ranking %}
+              <tr {% if 'depor' in eq.equipo|lower %}class="table-primary fw-bold"{% endif %}>
+                <td class="text-center fw-semibold">{{ eq.pos_racha }}</td>
+                <td>{{ eq.equipo }}</td>
+                <td class="text-center"><span class="badge bg-dark">{{ eq.racha_pts }}</span></td>
+                <td>
+                  {% for r in eq.racha_lista %}
+                  <span class="racha-badge racha-{{ r }}">{{ r }}</span>
+                  {% endfor %}
+                </td>
+                <td class="text-center">
+                  {% if eq.delta_pos is not None %}
+                    {% if eq.delta_pos > 0 %}
+                      <span class="delta-pos-pos">↑{{ eq.delta_pos }}</span>
+                    {% elif eq.delta_pos < 0 %}
+                      <span class="delta-pos-neg">↓{% widthratio eq.delta_pos -1 1 %}</span>
+                    {% else %}
+                      <span class="delta-pos-neu">—</span>
+                    {% endif %}
+                  {% else %}
+                    <span class="delta-pos-neu">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="p-2 border-top d-flex gap-3" style="font-size:.8rem;">
+          <span><span class="racha-badge racha-V">V</span> Victoria</span>
+          <span><span class="racha-badge racha-E">E</span> Empate</span>
+          <span><span class="racha-badge racha-D">D</span> Derrota</span>
+          <span class="ms-auto text-muted">Δ pos. = pos. oficial − pos. racha</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% elif not mostrar_forma %}
+  <div class="col-12">
+    <div class="alert alert-light border d-flex align-items-center gap-3">
+      <i class="bi bi-fire text-warning fs-4"></i>
+      <div>
+        <strong>¿Quieres ver el ranking de forma?</strong><br>
+        <span class="text-muted small">
+          Selecciona la competición, elige el número de partidos y pulsa
+          <em>Calcular ranking de forma</em> para ver cómo cambia la tabla según la racha reciente.
+        </span>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Autocomplete de competiciones (rúbrica C4 — JS frontend)
+const inputComp = document.getElementById('input-competicion');
+if (inputComp) {
+  initAutocomplete(inputComp, '{% url "rachas:autocomplete" %}', { minChars: 1, delay: 100 });
+}
+</script>
+{% endblock %}

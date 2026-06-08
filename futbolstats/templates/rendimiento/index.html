@@ -1,0 +1,435 @@
+<!-- Hecho con la ayuda de IA facilitándole las imágenes realizadas por nosotros del anteproyecto para que la interfaz
+ quede lo más parecida a ellas posible y adecuándola a nuestro código-->
+{% extends "base.html" %}
+{% block title %}Análisis de rendimiento — FutbolStats{% endblock %}
+
+{% block content %}
+<h3 class="fw-bold mb-1" style="color:var(--navy)">📊 Análisis de rendimiento</h3>
+<p class="text-muted mb-4">Compara el rendimiento local vs. visitante de un equipo usando Pandas</p>
+
+<div class="card mb-4">
+  <div class="card-header card-header-navy text-white bg-dark">Selecciona equipo y número de partidos</div>
+  <div class="card-body">
+    <form method="GET" class="row g-3 align-items-end">
+      <input type="hidden" name="team_id" id="team-id" value="">
+      <div class="col-md-6">
+        <label class="form-label fw-semibold">Equipo</label>
+        <div class="position-relative">
+          <input type="text"
+                 id="input-equipo"
+                 name="equipo"
+                 class="form-control form-control-lg"
+                 placeholder="p. ej. Real Madrid, Villarreal, Arsenal..."
+                 value="{{ query_usada|default:equipo_seleccionado }}"
+                 autocomplete="off">
+        </div>
+        <div class="form-text">Escribe al menos 2 caracteres para ver sugerencias.</div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label fw-semibold">Últimos N partidos</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-hash"></i></span>
+          <input type="number" name="n_partidos" class="form-control form-control-lg"
+                 value="{{ n_partidos|default:15 }}" min="1" max="30">
+          <span class="input-group-text text-muted">p.</span>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-primary btn-lg w-100">
+          <i class="bi bi-bar-chart-fill me-1"></i> Analizar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if candidatos %}
+<div class="card mb-4 border-warning">
+  <div class="card-header bg-warning text-dark fw-semibold">
+    <i class="bi bi-list-ul me-1"></i> Se encontraron varios equipos — elige el correcto
+  </div>
+  <div class="card-body p-2">
+    <div class="row g-2">
+      {% for c in candidatos %}
+      <div class="col-sm-6 col-md-4 col-lg-3">
+        <form method="get">
+          <input type="hidden" name="equipo" value="{{ c.nombre }}">
+          <input type="hidden" name="team_id" value="{{ c.id }}">
+          <input type="hidden" name="n_partidos" value="{{ n_partidos|default:15 }}">
+          <button type="submit"
+                  class="btn btn-outline-navy w-100 h-100 text-start d-flex align-items-center gap-2 p-2">
+            {% if c.logo %}
+              <img src="{{ c.logo }}" alt="{{ c.nombre }}"
+                   style="width:32px;height:32px;object-fit:contain;flex-shrink:0;">
+            {% else %}
+              <i class="bi bi-shield-fill text-secondary" style="font-size:1.5rem;flex-shrink:0;"></i>
+            {% endif %}
+            <span>
+              <span class="d-block fw-semibold small">{{ c.nombre }}</span>
+              {% if c.pais %}
+                <span class="d-block" style="font-size:.75rem;color:#6c757d;">{{ c.pais }}</span>
+              {% endif %}
+            </span>
+          </button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if error_api %}
+    <div class="alert alert-danger" role="alert">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Error:</strong> {{ error_api }}
+    </div>
+{% elif medias %} <div class="row g-3 mb-4">
+  {% for condicion, stats in medias.items %}
+  <div class="col-md-6">
+    <div class="card p-3 text-center shadow-sm">
+      <div class="text-uppercase fw-bold mb-2" style="font-size:.8rem;letter-spacing:.06em;color:var(--accent);">
+        Rendimiento como {{ condicion }}
+      </div>
+      <div class="row g-0">
+        <div class="col border-end">
+          <div class="fs-2 fw-bold text-primary">{{ stats.Goles_Favor }}</div>
+          <div class="text-muted" style="font-size:.78rem;">Media GF</div>
+        </div>
+        <div class="col border-end">
+          <div class="fs-2 fw-bold text-danger">{{ stats.Goles_Contra }}</div>
+          <div class="text-muted" style="font-size:.78rem;">Media GC</div>
+        </div>
+        <div class="col">
+          <div class="fs-2 fw-bold {% if stats.Diferencia_Goles >= 0 %}text-success{% else %}text-danger{% endif %}">
+            {% if stats.Diferencia_Goles > 0 %}+{% endif %}{{ stats.Diferencia_Goles }}
+          </div>
+          <div class="text-muted" style="font-size:.78rem;">Media Dif.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% if grafica_rendimiento_json %}
+<div class="card mb-4 shadow-sm">
+  <div class="card-header bg-light d-flex justify-content-between align-items-center">
+    <span class="fw-bold text-secondary">Evolución por partido (Local / Visitante)</span>
+    <span class="badge bg-primary">Chart.js</span>
+  </div>
+  <div class="card-body">
+    <div class="d-flex gap-2 flex-wrap mb-2">
+      <span class="badge bg-primary-subtle text-primary-emphasis border">L = Local</span>
+      <span class="badge bg-secondary-subtle text-secondary-emphasis border">V = Visitante</span>
+      <span class="badge bg-light text-dark border">◯ Marcador en 0 goles</span>
+    </div>
+    <div class="row g-3">
+      <div class="col-12 col-xl-6">
+        <div class="border rounded p-2">
+          <div class="fw-semibold text-primary mb-2">{{ equipo_seleccionado }} como Local</div>
+          <div id="rango-local" class="small text-muted mb-2"></div>
+          <div style="height:320px;">
+            <canvas id="chart-rendimiento-local"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-xl-6">
+        <div class="border rounded p-2">
+          <div class="fw-semibold text-secondary mb-2">{{ equipo_seleccionado }} como Visitante</div>
+          <div id="rango-visitante" class="small text-muted mb-2"></div>
+          <div style="height:320px;">
+            <canvas id="chart-rendimiento-visitante"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% for condicion, partidos in lista_partidos.items %}
+<div class="card mb-4 shadow-sm">
+  <div class="card-header bg-light d-flex justify-content-between align-items-center">
+    <span class="fw-bold text-secondary">
+      Partidos jugados como {{ condicion }}
+    </span>
+    <span class="badge bg-warning text-dark">Pandas GroupBy</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Fecha</th>
+            <th>Local</th>
+            <th class="text-center">Resultado</th>
+            <th>Visitante</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in partidos %}
+          <tr>
+            <td class="text-muted small">{{ p.Fecha }}</td>
+            <td class="
+              {% if p.Resultado_Local > p.Resultado_Visitante %} text-success
+              {% elif p.Resultado_Local < p.Resultado_Visitante %} text-danger
+              {% endif %}
+            ">
+              {{ p.Equipo_Local }}
+            </td>
+            <td class="text-center fw-bold bg-light">{{ p.Resultado_Local }} - {{ p.Resultado_Visitante }}</td>
+            <td class="
+              text-end
+              {% if p.Resultado_Visitante > p.Resultado_Local %} text-success
+              {% elif p.Resultado_Visitante < p.Resultado_Local %} text-danger
+              {% endif %}
+            ">
+              {{ p.Equipo_Visitante }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  const input = document.getElementById("input-equipo");
+  const hiddenId = document.getElementById("team-id");
+  if (!input || !hiddenId) return;
+
+  const url = '{% url "rendimiento:autocomplete" %}';
+  const dropdown = document.createElement("ul");
+  dropdown.className = "list-unstyled position-absolute w-100 mb-0 shadow-sm";
+  dropdown.style.cssText = [
+    "z-index:1050","background:#fff",
+    "border:1px solid #dee2e6","border-top:none",
+    "border-radius:0 0 .375rem .375rem",
+    "max-height:300px","overflow-y:auto","display:none"
+  ].join(";");
+  input.parentElement.appendChild(dropdown);
+
+  let timer = null;
+  let lastQ = "";
+
+  const cerrar = () => { dropdown.style.display = "none"; dropdown.innerHTML = ""; };
+
+  function mostrar(sugerencias) {
+    dropdown.innerHTML = "";
+    if (!sugerencias.length) { cerrar(); return; }
+
+    sugerencias.forEach((s) => {
+      const li = document.createElement("li");
+      li.style.cssText = "padding:.45rem .75rem;cursor:pointer;border-bottom:1px solid #f3f3f3;display:flex;align-items:center;gap:.6rem;";
+      const logo = s.logo
+        ? `<img src="${s.logo}" style="width:24px;height:24px;object-fit:contain;flex-shrink:0;">`
+        : `<i class="bi bi-shield text-secondary" style="flex-shrink:0;"></i>`;
+      li.innerHTML = `${logo}<span>
+        <span style="display:block;font-size:.9rem;font-weight:600;">${s.label}</span>
+        ${s.pais ? `<span style="font-size:.75rem;color:#6c757d;">${s.pais}</span>` : ""}
+      </span>`;
+      li.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        input.value = s.label;
+        hiddenId.value = s.id;
+        cerrar();
+      });
+      li.addEventListener("mouseenter", () => li.style.background = "#f0f4ff");
+      li.addEventListener("mouseleave", () => li.style.background = "");
+      dropdown.appendChild(li);
+    });
+    dropdown.style.display = "block";
+  }
+
+  input.addEventListener("input", () => {
+    hiddenId.value = "";
+    const q = input.value.trim();
+    clearTimeout(timer);
+    if (q.length < 2) { cerrar(); return; }
+    if (q === lastQ) return;
+    lastQ = q;
+    timer = setTimeout(() => {
+      fetch(`${url}?q=${encodeURIComponent(q)}`)
+        .then((r) => r.json())
+        .then((d) => mostrar(d.sugerencias || []))
+        .catch(cerrar);
+    }, 250);
+  });
+
+  input.addEventListener("blur", () => setTimeout(cerrar, 160));
+})();
+</script>
+{% if grafica_rendimiento_json %}
+<script>
+(function () {
+  const canvasLocal = document.getElementById("chart-rendimiento-local");
+  const canvasVisitante = document.getElementById("chart-rendimiento-visitante");
+  const rangoLocal = document.getElementById("rango-local");
+  const rangoVisitante = document.getElementById("rango-visitante");
+  if ((!canvasLocal && !canvasVisitante) || typeof Chart === "undefined") return;
+  const nombreEquipo = "{{ equipo_seleccionado|escapejs }}";
+
+  const datos = JSON.parse('{{ grafica_rendimiento_json|escapejs }}');
+  if (!datos.labels || !datos.labels.length) return;
+
+  function construirSerie(condicionObjetivo) {
+    const serie = { labels: [], labelsCortas: [], fechas: [], rivales: [], gf: [], gc: [], dif: [] };
+    for (let i = 0; i < datos.labels.length; i++) {
+      if ((datos.condiciones || [])[i] !== condicionObjetivo) continue;
+      const labelCompleto = datos.labels[i] || "";
+      const fecha = labelCompleto.split(" ")[0] || "";
+      const rival = (datos.rivales || [])[i] || "Rival";
+      serie.labels.push(labelCompleto);
+      serie.fechas.push(fecha);
+      serie.rivales.push(rival);
+      serie.gf.push((datos.goles_favor || [])[i]);
+      serie.gc.push((datos.goles_contra || [])[i]);
+      serie.dif.push((datos.diferencia_goles || [])[i]);
+    }
+    serie.labelsCortas = serie.fechas.map((_, idx) => `P${idx + 1}`);
+    return serie;
+  }
+
+  function crearGrafica(canvas, serie, condicionObjetivo) {
+    if (!canvas || !serie.labels.length) return;
+    const ctx = canvas.getContext("2d");
+    new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: serie.labelsCortas,
+        datasets: [
+          {
+            label: "Goles a favor",
+            data: serie.gf,
+            backgroundColor: (ctx) => ctx.raw === 0
+              ? "rgba(13, 110, 253, 0.25)"
+              : "rgba(13, 110, 253, 0.75)",
+            borderColor: "rgba(13, 110, 253, 1)",
+            borderWidth: (ctx) => ctx.raw === 0 ? 2 : 1,
+          },
+          {
+            label: "Goles en contra",
+            data: serie.gc,
+            backgroundColor: (ctx) => ctx.raw === 0
+              ? "rgba(255, 159, 64, 0.25)"
+              : "rgba(255, 159, 64, 0.75)",
+            borderColor: "rgba(255, 159, 64, 1)",
+            borderWidth: (ctx) => ctx.raw === 0 ? 2 : 1,
+          },
+          {
+            label: "Diferencia de goles",
+            data: serie.dif,
+            backgroundColor: (ctx) => (ctx.raw >= 0 ? "rgba(25, 135, 84, 0.75)" : "rgba(220, 53, 69, 0.75)"),
+            borderColor: (ctx) => (ctx.raw >= 0 ? "rgba(25, 135, 84, 1)" : "rgba(220, 53, 69, 1)"),
+            borderWidth: 1,
+          },
+          {
+            label: "0 goles (GF)",
+            type: "line",
+            data: serie.gf.map((v) => (v === 0 ? 0 : null)),
+            showLine: false,
+            pointRadius: 5,
+            pointHoverRadius: 5,
+            pointStyle: "circle",
+            pointBackgroundColor: "rgba(13, 110, 253, 1)",
+            pointBorderColor: "#fff",
+            pointBorderWidth: 2,
+          },
+          {
+            label: "0 goles (GC)",
+            type: "line",
+            data: serie.gc.map((v) => (v === 0 ? 0 : null)),
+            showLine: false,
+            pointRadius: 5,
+            pointHoverRadius: 5,
+            pointStyle: "rectRot",
+            pointBackgroundColor: "rgba(255, 159, 64, 1)",
+            pointBorderColor: "#fff",
+            pointBorderWidth: 2,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: "top",
+            labels: {
+              // Ocultamos en leyenda las series auxiliares de marcadores de cero
+              filter: (item) => !String(item.text || "").startsWith("0 goles"),
+            },
+          },
+          tooltip: {
+            mode: "index",
+            intersect: false,
+            filter: (item) => !String(item.dataset?.label || "").startsWith("0 goles"),
+            callbacks: {
+              title: (items) => {
+                if (!items.length) return "";
+                const i = items[0].dataIndex;
+                if (condicionObjetivo === "L") {
+                  // Si el equipo analizado juega de local: Equipo vs Rival
+                  return [`${serie.fechas[i]} · ${serie.labelsCortas[i]}`, `${nombreEquipo} vs ${serie.rivales[i]}`];
+                }
+                // Si juega de visitante: Local(rival) vs Visitante(equipo)
+                return [`${serie.fechas[i]} · ${serie.labelsCortas[i]}`, `${serie.rivales[i]} vs ${nombreEquipo}`];
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            ticks: {
+              maxRotation: 0,
+              minRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: 10,
+            },
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { precision: 0 },
+            title: { display: true, text: "Goles" },
+          },
+        },
+      },
+    });
+  }
+
+  const serieLocal = construirSerie("L");
+  const serieVisitante = construirSerie("V");
+
+  if (rangoLocal) {
+    if (serieLocal.fechas.length) {
+      const ini = serieLocal.fechas[0];
+      const fin = serieLocal.fechas[serieLocal.fechas.length - 1];
+      rangoLocal.textContent = `Rango: ${ini} a ${fin} · ${serieLocal.fechas.length} partidos`;
+    } else {
+      rangoLocal.textContent = "Sin partidos como local en la muestra.";
+    }
+  }
+  if (rangoVisitante) {
+    if (serieVisitante.fechas.length) {
+      const ini = serieVisitante.fechas[0];
+      const fin = serieVisitante.fechas[serieVisitante.fechas.length - 1];
+      rangoVisitante.textContent = `Rango: ${ini} a ${fin} · ${serieVisitante.fechas.length} partidos`;
+    } else {
+      rangoVisitante.textContent = "Sin partidos como visitante en la muestra.";
+    }
+  }
+
+  crearGrafica(canvasLocal, serieLocal, "L");
+  crearGrafica(canvasVisitante, serieVisitante, "V");
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}Zonas Fan — FutbolStats{% endblock %}
+
+{% block extra_css %}
+<!-- Leaflet CSS — cdnjs es más fiable que unpkg en entornos locales -->
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  #mapa {
+    height: 420px !important;  
+    border-radius: 0 0 8px 8px;
+    z-index: 0;
+    background: #e8edf2;      
+  }
+  .leaflet-popup-content { font-size: .85rem; line-height: 1.5; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h3 class="fw-bold mb-1" style="color:var(--navy)">🗺️ Zonas fan y restauración</h3>
+<p class="text-muted mb-4">Locales cercanos al estadio · mapa interactivo Leaflet.js</p>
+
+<div class="card mb-4">
+  <div class="card-header card-header-navy">Selecciona un equipo</div>
+  <div class="card-body">
+    <form method="post" data-loading class="row g-3 align-items-end">
+      {% csrf_token %}
+      <div class="col-md-5">
+        <label class="form-label fw-semibold">Equipo</label>
+        <div class="position-relative">
+          <input type="text" name="equipo" id="input-equipo-zonas"
+                 class="form-control form-control-lg"
+                 placeholder="Escribe el nombre del equipo…"
+                 value="{{ equipo_nombre|default:'' }}"
+                 autocomplete="off">
+        </div>
+        <div class="form-text">
+          <i class="bi bi-lightbulb"></i> Empieza a escribir para ver sugerencias.
+        </div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label fw-semibold">Radio de búsqueda</label>
+        <select name="radio" class="form-select form-select-lg">
+          <option value="500"  {% if radio == 500  %}selected{% endif %}>500 m</option>
+          <option value="1000" {% if radio == 1000 or not radio %}selected{% endif %}>1 km</option>
+          <option value="2000" {% if radio == 2000 %}selected{% endif %}>2 km</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <button type="submit" class="btn btn-navy btn-lg w-100">
+          <i class="bi bi-geo-alt-fill me-1"></i> Buscar locales
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if mapa_lat %}
+<div class="row g-4">
+  <!-- MAPA -->
+  <div class="col-md-7">
+    <div class="card">
+      <div class="card-header card-header-navy d-flex align-items-center justify-content-between">
+        <span><i class="bi bi-map me-1"></i> {{ estadio }}</span>
+        <span class="badge bg-light text-dark">radio {{ radio }} m</span>
+      </div>
+      <div id="mapa"></div>
+    </div>
+  </div>
+
+  <!-- LISTA DE LOCALES -->
+  <div class="col-md-5">
+    <div class="card h-100">
+      <div class="card-header card-header-navy d-flex justify-content-between">
+        <span><i class="bi bi-list-ul me-1"></i> Locales cercanos</span>
+        <span class="badge bg-light text-dark">{{ locales|length }}</span>
+      </div>
+      <div class="card-body p-0" style="max-height:420px;overflow-y:auto;">
+        {% if locales %}
+        <table class="table table-hover table-sm mb-0">
+          <thead class="table-light sticky-top">
+            <tr>
+              <th>Nombre</th>
+              <th>Tipo</th>
+              <th class="text-center">Dist.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for local in locales %}
+            <tr style="cursor:pointer" data-lat="{{ local.lat }}" data-lng="{{ local.lng }}"
+                data-nombre="{{ local.nombre }}" data-cat="{{ local.categoria }}"
+                data-dist="{{ local.distancia }}">
+              <td class="fw-semibold small">{{ local.nombre }}</td>
+              <td class="text-muted small">{{ local.categoria }}</td>
+              <td class="text-center small">{{ local.distancia }} m</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="text-muted p-3 mb-0">No se encontraron locales en este radio.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<!-- Leaflet JS — mismo CDN que el CSS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<script>
+// ── Autocomplete de equipos ────────────────────────────────────────────────
+const inputZonas = document.getElementById('input-equipo-zonas');
+if (inputZonas && typeof initAutocomplete === 'function') {
+  initAutocomplete(inputZonas, '{% url "zonas_fan:autocomplete" %}', { minChars: 2, delay: 200 });
+}
+
+// ── Mapa Leaflet ───────────────────────────────────────────────────────────
+{% if mapa_lat %}
+(function initMapa() {
+  // Guard: si Leaflet no cargó, mostrar aviso en lugar de explotar
+  if (typeof L === 'undefined') {
+    document.getElementById('mapa').innerHTML =
+      '<p class="text-muted p-3">⚠️ No se pudo cargar Leaflet. Comprueba la conexión.</p>';
+    return;
+  }
+
+const _coords = {{ mapa_coords_json|safe }};
+const LAT     = _coords.lat;
+const LNG     = _coords.lng;
+const RADIO   = {{ radio|default:1000 }};
+const LOCALES = {{ locales_json|default:"[]"|safe }};
+
+  const map = L.map('mapa', { zoomControl: true }).setView([LAT, LNG], 16);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19,
+  }).addTo(map);
+
+  // Pin del estadio
+  const iconEstadio = L.divIcon({
+    html: '<span style="font-size:2rem;filter:drop-shadow(0 2px 3px rgba(0,0,0,.4))">🏟️</span>',
+    className: '', iconAnchor: [16, 16], popupAnchor: [0, -18],
+  });
+  const markerEstadio = L.marker([LAT, LNG], { icon: iconEstadio })
+    .addTo(map)
+    .bindPopup('<strong>{{ estadio }}</strong><br><span style="color:#666">{{ equipo_nombre }}</span>')
+    .openPopup();
+
+  // Círculo de radio
+  L.circle([LAT, LNG], {
+    radius: RADIO, color: '#1a2a5e',
+    fillColor: '#d5dcf5', fillOpacity: 0.15, weight: 1.5,
+  }).addTo(map);
+
+  // Marcadores de locales
+  const marcadores = {};
+  LOCALES.forEach(local => {
+    if (!local.lat || !local.lng) return;
+    const m = L.circleMarker([local.lat, local.lng], {
+      radius: 7, color: '#1a2a5e',
+      fillColor: '#2a4aaf', fillOpacity: 0.85, weight: 2,
+    })
+    .addTo(map)
+    .bindPopup(`<strong>${local.nombre}</strong><br>
+      <span style="color:#666">${local.categoria}</span><br>
+      ${local.distancia} m · ${local.direccion || ''}`);
+    marcadores[`${local.lat}_${local.lng}`] = m;
+  });
+
+  // Click en fila de tabla → zoom al local
+  document.querySelectorAll('tbody tr[data-lat]').forEach(fila => {
+    fila.addEventListener('click', () => {
+      const lat = parseFloat(fila.dataset.lat);
+      const lng = parseFloat(fila.dataset.lng);
+      map.setView([lat, lng], 18, { animate: true });
+      const key = `${lat}_${lng}`;
+      if (marcadores[key]) marcadores[key].openPopup();
+      document.querySelectorAll('tbody tr').forEach(r => r.classList.remove('table-active'));
+      fila.classList.add('table-active');
+    });
+  });
+
+  // Botón para volver al estadio
+  const btnReset = L.control({ position: 'topright' });
+  btnReset.onAdd = () => {
+    const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+    div.innerHTML = `<a href="#" title="Volver al estadio"
+      style="display:flex;align-items:center;justify-content:center;
+             width:30px;height:30px;font-size:1.1rem;text-decoration:none;">🏟️</a>`;
+    div.querySelector('a').addEventListener('click', e => {
+      e.preventDefault();
+      map.setView([LAT, LNG], 16, { animate: true });
+      markerEstadio.openPopup();
+      document.querySelectorAll('tbody tr').forEach(r => r.classList.remove('table-active'));
+    });
+    return div;
+  };
+  btnReset.addTo(map);
+})();
+{% endif %}
+</script>
+{% endblock %}

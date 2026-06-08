@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Hemeroteca — FutbolStats{% endblock %}
+
+{% block content %}
+<h3 class="fw-bold mb-1" style="color:var(--navy)">🎬 Hemeroteca y resúmenes en vídeo</h3>
+<p class="text-muted mb-4">Busca partidos históricos o recientes · reproducción integrada en la web</p>
+
+<div class="card mb-4">
+  <div class="card-header card-header-navy">Buscar partido o equipo</div>
+  <div class="card-body">
+    <form method="post" data-loading class="row g-3 align-items-end">
+      {% csrf_token %}
+      <div class="col-md-9">
+        <label class="form-label fw-semibold">Nombre del partido o equipo</label>
+        <div class="position-relative">
+          <input type="text" name="busqueda" id="input-busqueda"
+                 class="form-control form-control-lg"
+                 placeholder="p. ej. RC Deportivo vs AC Milan 2004"
+                 value="{{ query_usada }}" autocomplete="off">
+        </div>
+        <div class="form-text">
+          <i class="bi bi-lightbulb"></i>
+          Escribe al menos 2 caracteres para ver sugerencias en el desplegable.
+        </div>
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-navy btn-lg w-100">
+          <i class="bi bi-search me-1"></i> Buscar vídeos
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if videos %}
+
+<div class="d-flex align-items-center gap-3 mb-3">
+  <h5 class="fw-bold mb-0" style="color:var(--navy)">
+    Resultados: <span class="fw-normal text-muted">{{ query_usada }}</span>
+  </h5>
+  <span class="badge bg-secondary">{{ videos|length }} vídeos</span>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     PRIMER VÍDEO DESTACADO
+     El iframe usa enablejsapi=1; el YouTube IFrame API detecta onError
+     y muestra el fallback si el vídeo bloquea el embedding.
+     ═══════════════════════════════════════════════ -->
+{% with v=videos.0 %}
+<div class="card mb-4">
+  <div class="card-header card-header-navy d-flex align-items-center gap-2">
+    <i class="bi bi-play-circle-fill"></i>
+    <span id="featured-title">{{ v.titulo }}</span>
+  </div>
+  <div class="card-body p-0 position-relative">
+
+    <!-- Reproductor principal — YT IFrame API lo gestiona -->
+    <div class="ratio ratio-16x9" id="featured-player-wrap">
+      <iframe id="featured-iframe"
+              src="{{ v.embed_url }}"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen style="border:none;"></iframe>
+    </div>
+
+    <!-- Fallback — oculto hasta que onError lo active -->
+    <div id="featured-fallback" style="display:none;">
+      <div class="d-flex flex-column align-items-center justify-content-center gap-3 py-5 bg-dark">
+        <img src="{{ v.thumbnail }}" alt="{{ v.titulo }}"
+             style="max-height:180px;opacity:.4;border-radius:6px;">
+        <div class="text-center text-white">
+          <i class="bi bi-lock-fill fs-2 d-block mb-2"></i>
+          <p class="mb-3 small px-3">
+            Este vídeo no permite la reproducción embebida por restricciones del propietario.
+          </p>
+          <a id="featured-watch-link"
+             href="{{ v.watch_url }}" target="_blank" rel="noopener noreferrer"
+             class="btn btn-danger">
+            <i class="bi bi-youtube me-1"></i> Ver en YouTube
+          </a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <div class="card-footer text-muted small d-flex justify-content-between">
+    <span><i class="bi bi-youtube text-danger me-1"></i>{{ v.canal }}</span>
+    <span><i class="bi bi-calendar3 me-1"></i>{{ v.publicado }}</span>
+  </div>
+</div>
+{% endwith %}
+
+{% if videos|length > 1 %}
+<!-- ═══════════════════════════════════════════════
+     MODAL REPRODUCTOR para el resto de vídeos
+     ═══════════════════════════════════════════════ -->
+<div id="player-container">
+  <div id="player-wrapper">
+    <button id="player-close" title="Cerrar">&times;</button>
+
+    <!-- Reproductor modal -->
+    <div class="ratio ratio-16x9" id="modal-player-wrap">
+      <iframe id="modal-iframe" src=""
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen></iframe>
+    </div>
+
+    <!-- Fallback modal -->
+    <div id="modal-fallback" style="display:none;">
+      <div class="d-flex flex-column align-items-center justify-content-center gap-3 py-4">
+        <i class="bi bi-lock-fill fs-1 text-white"></i>
+        <p class="text-white small text-center mb-2">
+          Este vídeo no permite reproducción embebida.
+        </p>
+        <a id="modal-watch-link" href="#" target="_blank" rel="noopener noreferrer"
+           class="btn btn-danger">
+          <i class="bi bi-youtube me-1"></i> Ver en YouTube
+        </a>
+      </div>
+    </div>
+
+    <p id="player-title" class="text-white mt-2 text-center small mb-0"></p>
+  </div>
+</div>
+
+<h6 class="fw-semibold text-muted mb-3">Más vídeos relacionados</h6>
+<div class="row g-3">
+  {% for video in videos|slice:"1:" %}
+  <div class="col-sm-6 col-md-4 col-lg-3">
+    <div class="card h-100">
+      <div class="video-thumb-container"
+           data-video-id="{{ video.video_id }}"
+           data-embed="{{ video.embed_url }}"
+           data-watch="{{ video.watch_url }}"
+           data-titulo="{{ video.titulo }}"
+           style="cursor:pointer;">
+        <img src="{{ video.thumbnail }}" alt="{{ video.titulo }}"
+             loading="lazy" style="height:140px;object-fit:cover;width:100%;">
+        <div class="video-play-overlay">
+          <div class="video-play-icon">
+            <i class="bi bi-play-fill text-dark" style="font-size:1.4rem;margin-left:3px;"></i>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-2">
+        <p class="small fw-semibold mb-1 lh-sm"
+           style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
+          {{ video.titulo }}</p>
+        <p style="font-size:.78rem;color:#6c757d;">
+          <i class="bi bi-youtube text-danger"></i> {{ video.canal }}</p>
+      </div>
+      <div class="card-footer p-2">
+        <button class="btn btn-sm btn-navy w-100 btn-play-modal"
+                data-embed="{{ video.embed_url }}"
+                data-watch="{{ video.watch_url }}"
+                data-titulo="{{ video.titulo }}">
+          <i class="bi bi-play-circle me-1"></i> Reproducir aquí
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% elif query_usada %}
+<div class="alert alert-info">
+  <i class="bi bi-info-circle me-2"></i>
+  No se encontraron vídeos para <strong>{{ query_usada }}</strong>. Prueba con otro término.
+</div>
+{% else %}
+<div class="text-center py-5 text-muted">
+  <i class="bi bi-camera-video" style="font-size:3rem;opacity:.3;"></i>
+  <p class="mt-3">Introduce el nombre de un partido o equipo para ver sus resúmenes.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ─── Autocomplete ────────────────────────────────────────────────────────────
+const inputBusqueda = document.getElementById('input-busqueda');
+if (inputBusqueda) {
+  initAutocomplete(inputBusqueda, '{% url "hemeroteca:autocomplete" %}', { minChars: 2, delay: 150 });
+}
+
+{% if videos %}
+// ─── YouTube IFrame API ───────────────────────────────────────────────────────
+// Cargamos la API de forma asíncrona (método oficial de Google)
+var ytApiTag = document.createElement('script');
+ytApiTag.src = 'https://www.youtube.com/iframe_api';
+document.head.appendChild(ytApiTag);
+
+// Códigos de error de YouTube que indican que el vídeo no puede embeberse:
+//   100 → vídeo no encontrado / eliminado / privado
+//   101 / 150 → el propietario no permite embedding
+//   153 → error de configuración del reproductor (restricción de derechos)
+const NO_EMBED_ERRORS = new Set([100, 101, 150, 151, 153]);
+
+// Estado del modal
+let modalWatchUrl = '';
+
+// ─── Lógica del modal ─────────────────────────────────────────────────────────
+const playerContainer = document.getElementById('player-container');
+const modalIframe     = document.getElementById('modal-iframe');
+const playerTitle     = document.getElementById('player-title');
+const playerClose     = document.getElementById('player-close');
+const modalFallback   = document.getElementById('modal-fallback');
+const modalPlayerWrap = document.getElementById('modal-player-wrap');
+const modalWatchLink  = document.getElementById('modal-watch-link');
+
+function abrirModal(embedUrl, watchUrl, titulo) {
+  if (!playerContainer) return;
+  modalWatchUrl = watchUrl;
+
+  // Resetear estado del modal
+  if (modalFallback)   modalFallback.style.display   = 'none';
+  if (modalPlayerWrap) modalPlayerWrap.style.display  = '';
+
+  // Cargar vídeo con autoplay
+  modalIframe.src = embedUrl + '&autoplay=1';
+  if (playerTitle) playerTitle.textContent = titulo;
+  playerContainer.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function cerrarModal() {
+  if (!playerContainer) return;
+  modalIframe.src = '';
+  playerContainer.classList.remove('active');
+  document.body.style.overflow = '';
+  if (modalFallback)   modalFallback.style.display   = 'none';
+  if (modalPlayerWrap) modalPlayerWrap.style.display  = '';
+}
+
+document.querySelectorAll('.video-thumb-container, .btn-play-modal').forEach(el => {
+  el.addEventListener('click', () =>
+    abrirModal(el.dataset.embed, el.dataset.watch, el.dataset.titulo)
+  );
+});
+if (playerClose)     playerClose.addEventListener('click', cerrarModal);
+if (playerContainer) playerContainer.addEventListener('click', e => {
+  if (e.target === playerContainer) cerrarModal();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal(); });
+
+// ─── YouTube IFrame API: callback global ─────────────────────────────────────
+// Se llama automáticamente cuando la API de YouTube está lista
+window.onYouTubeIframeAPIReady = function () {
+
+  // ── Vídeo destacado ──────────────────────────────────────────────────────
+  const featuredIframe = document.getElementById('featured-iframe');
+  if (featuredIframe) {
+    new YT.Player('featured-iframe', {
+      events: {
+        onError: function (e) {
+          if (NO_EMBED_ERRORS.has(e.data)) {
+            // Ocultamos el reproductor y mostramos el fallback
+            const wrap     = document.getElementById('featured-player-wrap');
+            const fallback = document.getElementById('featured-fallback');
+            if (wrap)     wrap.style.display    = 'none';
+            if (fallback) fallback.style.display = '';
+          }
+        }
+      }
+    });
+  }
+
+  // ── Modal: detectar error cuando se carga un vídeo en el modal ──────────
+  // El iframe del modal se recrea con cada apertura; usamos un MutationObserver
+  // para engancharnos al nuevo src y crear el Player sobre el iframe existente.
+  let modalYtPlayer = null;
+
+  function bindModalPlayer() {
+    if (modalYtPlayer) {
+      try { modalYtPlayer.destroy(); } catch(_) {}
+      modalYtPlayer = null;
+    }
+    if (!modalIframe || !modalIframe.src) return;
+    modalYtPlayer = new YT.Player(modalIframe, {
+      events: {
+        onError: function (e) {
+          if (NO_EMBED_ERRORS.has(e.data)) {
+            if (modalFallback)   modalFallback.style.display   = '';
+            if (modalPlayerWrap) modalPlayerWrap.style.display  = 'none';
+            if (modalWatchLink)  modalWatchLink.href            = modalWatchUrl;
+          }
+        }
+      }
+    });
+  }
+
+  // Observamos cambios de src en el iframe del modal
+  if (modalIframe) {
+    new MutationObserver(mutations => {
+      for (const m of mutations) {
+        if (m.attributeName === 'src' && modalIframe.src) {
+          // Pequeño delay para que el iframe arranque antes de crear el Player
+          setTimeout(bindModalPlayer, 200);
+        }
+      }
+    }).observe(modalIframe, { attributes: true });
+  }
+};
+{% endif %}
+</script>
+{% endblock %}

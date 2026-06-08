@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Registro — FutbolStats{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-5">
+    <div class="card">
+      <div class="card-header card-header-navy text-center py-3">
+        <h4 class="mb-0">⚽ Crear cuenta</h4>
+      </div>
+      <div class="card-body p-4">
+        <form method="post" data-loading>
+          {% csrf_token %}
+          {% for field in form %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold">{{ field.label }}</label>
+            <input type="{{ field.field.widget.input_type }}" name="{{ field.html_name }}"
+                   class="form-control {% if field.errors %}is-invalid{% endif %}"
+                   {% if field.value %}value="{{ field.value }}"{% endif %}>
+            {% if field.help_text %}<div class="form-text text-muted">{{ field.help_text }}</div>{% endif %}
+            {% for error in field.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+          </div>
+          {% endfor %}
+          <div class="d-grid mt-4">
+            <button type="submit" class="btn btn-navy btn-lg">Crear cuenta</button>
+          </div>
+        </form>
+        <hr>
+        <p class="text-center text-muted mb-0">
+          ¿Ya tienes cuenta? <a href="{% url 'accounts:login' %}">Inicia sesión</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

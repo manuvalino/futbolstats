@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Valor de Mercado — FutbolStats{% endblock %}
+
+{% block content %}
+<h3 class="fw-bold mb-1" style="color:var(--navy)">💰 Valor de mercado de la plantilla</h3>
+<p class="text-muted mb-4">Datos de API-Football · fees de transferencia reales cuando están disponibles</p>
+
+{# ── Formulario ───────────────────────────────────────────────────────────── #}
+<div class="card mb-4">
+  <div class="card-header card-header-navy">Buscar equipo</div>
+  <div class="card-body">
+    <form method="post" data-loading class="row g-3 align-items-end">
+      {% csrf_token %}
+      <input type="hidden" name="team_id" id="team-id" value="">
+      <div class="col-md-9">
+        <label class="form-label fw-semibold">Nombre del equipo</label>
+        <div class="position-relative">
+          <input type="text" name="equipo" id="input-equipo"
+                 class="form-control form-control-lg"
+                 placeholder="p. ej. Deportivo, Real Madrid, Celta…"
+                 value="{{ query_usada }}" autocomplete="off">
+        </div>
+        <div class="form-text">
+          <i class="bi bi-lightbulb"></i>
+          Escribe al menos 2 caracteres para ver sugerencias.
+        </div>
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-navy btn-lg w-100">
+          <i class="bi bi-search me-1"></i> Ver plantilla
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# ── Selección de candidatos ──────────────────────────────────────────────── #}
+{% if candidatos %}
+<div class="card mb-4 border-warning">
+  <div class="card-header bg-warning text-dark fw-semibold">
+    <i class="bi bi-list-ul me-1"></i> Se encontraron varios equipos — elige el correcto
+  </div>
+  <div class="card-body p-2">
+    <div class="row g-2">
+      {% for c in candidatos %}
+      <div class="col-sm-6 col-md-4 col-lg-3">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="equipo"  value="{{ c.nombre }}">
+          <input type="hidden" name="team_id" value="{{ c.id }}">
+          <button type="submit"
+                  class="btn btn-outline-navy w-100 h-100 text-start d-flex align-items-center gap-2 p-2">
+            {% if c.logo %}
+              <img src="{{ c.logo }}" alt="{{ c.nombre }}"
+                   style="width:32px;height:32px;object-fit:contain;flex-shrink:0;">
+            {% else %}
+              <i class="bi bi-shield-fill text-secondary" style="font-size:1.5rem;flex-shrink:0;"></i>
+            {% endif %}
+            <span>
+              <span class="d-block fw-semibold small">{{ c.nombre }}</span>
+              {% if c.pais %}
+                <span class="d-block" style="font-size:.75rem;color:#6c757d;">{{ c.pais }}</span>
+              {% endif %}
+            </span>
+          </button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ── Resultado ────────────────────────────────────────────────────────────── #}
+{% if resultado %}
+<div class="card mb-4">
+  <div class="card-header card-header-navy d-flex align-items-center gap-3">
+    {% if escudo_url %}
+      <img src="{{ escudo_url }}" alt="Escudo" style="height:36px;object-fit:contain;">
+    {% endif %}
+    <span class="fw-semibold">{{ equipo_nombre }}</span>
+    {% if equipo_pais %}
+      <span class="text-white-50 small">{{ equipo_pais }}</span>
+    {% endif %}
+    <span class="badge bg-light text-dark ms-auto">{{ resultado.num_jugadores }} jugadores</span>
+  </div>
+  <div class="card-body">
+
+    {# Valor total + nota de cobertura #}
+    <div class="alert alert-navy d-flex justify-content-between align-items-center mb-3">
+      <span class="fw-semibold">💰 Valor total de la plantilla</span>
+      <span class="fs-4 fw-bold">{{ resultado.total_plantilla|floatformat:0 }} €</span>
+    </div>
+
+    {% if resultado.jugadores_con_fee < resultado.num_jugadores %}
+    <div class="alert alert-light border mb-4 small">
+      <i class="bi bi-info-circle me-1"></i>
+      <strong>{{ resultado.jugadores_con_fee }}</strong> de <strong>{{ resultado.num_jugadores }}</strong>
+      jugadores tienen un fee de transferencia registrado
+      <span class="badge bg-success ms-1">Transferencia</span>.
+      El resto usa un valor estimado por posición
+      <span class="badge bg-secondary ms-1">Estimado</span>.
+    </div>
+    {% endif %}
+
+    {# Resumen por posición #}
+    <h6 class="fw-semibold text-muted mb-2">Resumen por posición</h6>
+    <div class="table-responsive mb-4">
+      <table class="table table-sm table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Posición</th>
+            <th class="text-center">Jugadores</th>
+            <th class="text-center">Con fee real</th>
+            <th class="text-end">Valor total (€)</th>
+            <th class="text-end">Valor medio (€)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for fila in resultado.resumen %}
+          <tr>
+            <td class="fw-semibold">{{ fila.posicion_es }}</td>
+            <td class="text-center">{{ fila.jugadores }}</td>
+            <td class="text-center">
+              <span class="badge bg-success">{{ fila.con_fee_real }}</span>
+            </td>
+            <td class="text-end">{{ fila.valor_total|floatformat:0 }}</td>
+            <td class="text-end">{{ fila.valor_medio|floatformat:0 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# Tabla individual #}
+    <h6 class="fw-semibold text-muted mb-2">Jugadores</h6>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th style="width:44px;"></th>
+            <th>Jugador</th>
+            <th class="text-center">Núm.</th>
+            <th class="text-center">Edad</th>
+            <th>Posición</th>
+            <th class="text-center">Fuente</th>
+            <th class="text-end">Valor (€)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for j in resultado.tabla %}
+          <tr>
+            <td>
+              {% if j.foto %}
+                <img src="{{ j.foto }}" alt="{{ j.nombre }}"
+                     style="width:36px;height:36px;object-fit:cover;border-radius:50%;"
+                     loading="lazy">
+              {% else %}
+                <i class="bi bi-person-circle text-secondary fs-4"></i>
+              {% endif %}
+            </td>
+            <td class="fw-semibold">{{ j.nombre }}</td>
+            <td class="text-center text-muted small">{{ j.numero|default:"—" }}</td>
+            <td class="text-center text-muted small">{{ j.edad|default:"—" }}</td>
+            <td><span class="badge bg-secondary">{{ j.posicion_es }}</span></td>
+            <td class="text-center">
+              {% if j.fuente == "Transferencia" %}
+                <span class="badge bg-success" title="Fee de transferencia real">
+                  <i class="bi bi-check-circle me-1"></i>Real
+                </span>
+              {% else %}
+                <span class="badge bg-secondary" title="Valor estimado por posición">
+                  Estimado
+                </span>
+              {% endif %}
+            </td>
+            <td class="text-end fw-semibold">{{ j.valor_euros|floatformat:0 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+{% elif not candidatos %}
+<div class="text-center py-5 text-muted">
+  <i class="bi bi-people" style="font-size:3rem;opacity:.3;"></i>
+  <p class="mt-3">Busca un equipo para ver el valor estimado de su plantilla.</p>
+  <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
+    {% for eq in equipos_sugeridos %}
+    <form method="post" class="d-inline">
+      {% csrf_token %}
+      <input type="hidden" name="equipo" value="{{ eq }}">
+      <button type="submit" class="btn btn-sm btn-outline-navy">{{ eq }}</button>
+    </form>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const input    = document.getElementById('input-equipo');
+  const hiddenId = document.getElementById('team-id');
+  if (!input || !hiddenId) return;
+
+  const url = '{% url "plantilla:autocomplete" %}';
+
+  const dropdown = document.createElement('ul');
+  dropdown.className = 'list-unstyled position-absolute w-100 mb-0 shadow-sm';
+  dropdown.style.cssText = [
+    'z-index:1050','background:#fff',
+    'border:1px solid #dee2e6','border-top:none',
+    'border-radius:0 0 .375rem .375rem',
+    'max-height:300px','overflow-y:auto','display:none',
+  ].join(';');
+  input.parentElement.style.position = 'relative';
+  input.parentElement.appendChild(dropdown);
+
+  let timer = null, lastQ = '';
+
+  const cerrar = () => { dropdown.style.display = 'none'; dropdown.innerHTML = ''; };
+
+  function mostrar(sugerencias) {
+    dropdown.innerHTML = '';
+    if (!sugerencias.length) { cerrar(); return; }
+    sugerencias.forEach(s => {
+      const li = document.createElement('li');
+      li.style.cssText = 'padding:.45rem .75rem;cursor:pointer;border-bottom:1px solid #f3f3f3;display:flex;align-items:center;gap:.6rem;';
+      const logo = s.logo
+        ? `<img src="${s.logo}" style="width:24px;height:24px;object-fit:contain;flex-shrink:0;">`
+        : `<i class="bi bi-shield text-secondary" style="flex-shrink:0;"></i>`;
+      li.innerHTML = `${logo}<span>
+        <span style="display:block;font-size:.9rem;font-weight:600;">${s.label}</span>
+        ${s.pais ? `<span style="font-size:.75rem;color:#6c757d;">${s.pais}</span>` : ''}
+      </span>`;
+      li.addEventListener('mousedown', e => {
+        e.preventDefault();
+        input.value = s.label; hiddenId.value = s.id; cerrar();
+      });
+      li.addEventListener('mouseenter', () => li.style.background = '#f0f4ff');
+      li.addEventListener('mouseleave', () => li.style.background = '');
+      dropdown.appendChild(li);
+    });
+    dropdown.style.display = 'block';
+  }
+
+  input.addEventListener('input', () => {
+    hiddenId.value = '';
+    const q = input.value.trim();
+    clearTimeout(timer);
+    if (q.length < 2) { cerrar(); return; }
+    if (q === lastQ) return;
+    lastQ = q;
+    timer = setTimeout(() =>
+      fetch(`${url}?q=${encodeURIComponent(q)}`)
+        .then(r => r.json()).then(d => mostrar(d.sugerencias || [])).catch(cerrar)
+    , 250);
+  });
+  input.addEventListener('blur',  () => setTimeout(cerrar, 160));
+  input.addEventListener('focus', () => { if (input.value.trim().length >= 2) input.dispatchEvent(new Event('input')); });
+
+  input.addEventListener('keydown', e => {
+    const items  = Array.from(dropdown.querySelectorAll('li'));
+    const active = dropdown.querySelector('li.kb');
+    if (e.key === 'Escape') { cerrar(); return; }
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nx = active ? (active.nextElementSibling || items[0]) : items[0];
+      active?.classList.remove('kb');
+      nx.classList.add('kb'); nx.style.background = '#f0f4ff'; nx.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const pv = active ? (active.previousElementSibling || items[items.length-1]) : items[items.length-1];
+      active?.classList.remove('kb');
+      pv.classList.add('kb'); pv.style.background = '#f0f4ff'; pv.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter' && active) {
+      e.preventDefault(); active.dispatchEvent(new MouseEvent('mousedown'));
+    }
+  });
+})();
+</script>
+{% endblock %}
